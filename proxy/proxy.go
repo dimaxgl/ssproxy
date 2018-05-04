@@ -30,7 +30,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(storeInst)
 
 	//auth, err := store.NewDBStore(storeConf.DriverName, storeConf.Dsn)
 	//if err != nil {
