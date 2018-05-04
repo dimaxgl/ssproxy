@@ -1,0 +1,6 @@
+listenAddress: 0.0.0.0:1111
+store:
+  type: database
+  params:
+    driverName: postgres
+    dsn: postgres://admin:admindmdmdm@db/proxy?sslmode=disable
