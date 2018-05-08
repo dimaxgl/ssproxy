@@ -18,3 +18,10 @@ store:
       addUserExecQuery: "INSERT INTO users (\"username\", \"password\") VALUES (:user,:password)"
       # specific search user sql query
       getUserQuery: "SELECT password FROM users WHERE \"username\" = :user"
+
+# settings for password hashing
+password:
+  # hashing algorithm (sha and bcrypt now supported)
+  type: bcrypt
+  params:
+    cost: 20

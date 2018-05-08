@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	"crypto/sha256"
 	"crypto/sha512"
+	"bytes"
+	"sync"
 )
 
 var (
@@ -19,8 +21,9 @@ const (
 )
 
 type decoder struct {
-	h hash.Hash
-	s []byte
+	h      hash.Hash
+	hashMx sync.Mutex
+	s      []byte
 }
 
 type decoderOpts struct {
@@ -29,15 +32,24 @@ type decoderOpts struct {
 }
 
 // TODO make it thread safe
-func (d decoder) Encode(password []byte) ([]byte, error) {
-	return d.h.Sum(append(password, d.s...)), nil
+func (d *decoder) Encode(password []byte) ([]byte, error) {
+	return d.hash(password), nil
 }
 
-func (d decoder) Verify(password []byte, hash []byte) (bool, error) {
-	panic("implement me")
+// TODO make it thread safe
+func (d *decoder) Verify(password []byte, hash []byte) (bool, error) {
+	return bytes.Equal(d.hash(password), hash), nil
 }
 
-func (d decoder) Initialize(params map[string]interface{}) (password.Decoder, error) {
+func (d *decoder) hash(data []byte) []byte {
+	d.hashMx.Lock()
+	defer d.hashMx.Unlock()
+	defer d.h.Reset()
+	hashData := d.h.Sum(append(data, d.s...))
+	return hashData
+}
+
+func (d *decoder) Initialize(params map[string]interface{}) (password.Decoder, error) {
 	var opts decoderOpts
 	if err := mapstructure.Decode(params, &opts); err != nil {
 		return nil, errors.Wrap(err, `failed to parse sha decoder params`)
@@ -54,8 +66,8 @@ func (d decoder) Initialize(params map[string]interface{}) (password.Decoder, er
 	}
 
 	if opts.Salt != `` {
-		return decoder{h: h, s: []byte(opts.Salt)}, nil
+		return &decoder{h: h, s: []byte(opts.Salt)}, nil
 	}
 
-	return decoder{h: h, s: nil}, nil
+	return &decoder{h: h, s: nil}, nil
 }

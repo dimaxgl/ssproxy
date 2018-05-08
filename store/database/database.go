@@ -4,10 +4,9 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 	"github.com/jmoiron/sqlx"
-	"golang.org/x/crypto/bcrypt"
-	"log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/dimaxgl/ssproxy/store"
+	"github.com/dimaxgl/ssproxy/password"
 )
 
 const (
@@ -21,6 +20,7 @@ const (
 type dbStore struct {
 	conn *sqlx.DB
 	opts *dbOptions
+	pd   password.Decoder
 }
 
 type dbOptions struct {
@@ -35,7 +35,7 @@ type dbQueries struct {
 	GetUserQuery     string
 }
 
-func (d dbStore) Initialize(params map[string]interface{}) (store.Store, error) {
+func (d dbStore) Initialize(passwordDecoder password.Decoder, params map[string]interface{}) (store.Store, error) {
 	var options dbOptions
 	var err error
 
@@ -59,6 +59,8 @@ func (d dbStore) Initialize(params map[string]interface{}) (store.Store, error) 
 	}
 
 	d.opts = &options
+	d.pd = passwordDecoder
+
 	if d.conn, err = sqlx.Connect(options.DriverName, options.Dsn); err != nil {
 		return nil, errors.Wrap(err, `failed to create sql connection`)
 	}
@@ -66,35 +68,32 @@ func (d dbStore) Initialize(params map[string]interface{}) (store.Store, error) 
 	return d, nil
 }
 
-func (d dbStore) Valid(user, password string) bool {
+func (d dbStore) Verify(user string, password []byte) (bool, error) {
 
-	var passwordHash string
+	var passwordHash []byte
 
 	if rows, err := d.conn.NamedQuery(d.opts.Queries.GetUserQuery, map[string]interface{}{
 		d.opts.UserColumn: user,
 	}); err != nil {
-		log.Println(err)
-		return false
+		return false, errors.Wrap(err, `failed to query database`)
 	} else {
 		defer rows.Close()
 		for rows.Next() {
 			if err = rows.Scan(&passwordHash); err != nil {
-				log.Println(err)
-				return false
+				return false, errors.Wrap(err, `failed to scan sql value to bytes`)
 			} else {
-				log.Println(password, passwordHash)
-				return bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) == nil
+				return d.pd.Verify(password, passwordHash)
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
-func (d dbStore) Add(user, password string) error {
+func (d dbStore) Add(user string, password []byte) error {
 
-	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	passwordHash, err := d.pd.Encode(password)
 	if err != nil {
-		return errors.Wrap(err, `failed to encrypt password using bcrypt`)
+		return errors.Wrap(err, `failed to encode password`)
 	}
 
 	if result, err := d.conn.NamedExec(d.opts.Queries.AddUserExecQuery, map[string]interface{}{

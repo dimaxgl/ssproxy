@@ -68,5 +68,5 @@ func loadConfig(configPath string) (*config.Config, error) {
 
 func initUsers(s store.Store) {
 	// here you can add users on every run of your proxy
-	log.Println(s.Add(`user`,`password`))
+	log.Println(s.Add(`user`, []byte(`password`)))
 }

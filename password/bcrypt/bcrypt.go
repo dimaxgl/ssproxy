@@ -7,6 +7,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const ModuleName = `bcrypt`
+
 type decoder struct {
 	cost int
 }
@@ -45,4 +47,8 @@ func (d decoder) Initialize(params map[string]interface{}) (password.Decoder, er
 	}
 
 	return decoder{cost: opts.Cost}, nil
+}
+
+func init() {
+	password.RegisterDecoder(ModuleName, &decoder{})
 }
